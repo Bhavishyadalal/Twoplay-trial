@@ -1075,6 +1075,18 @@ body.custom-cursor-active input, body.custom-cursor-active textarea, body.custom
 @media (max-width: 460px) {
     .ping-display { padding: 3px 6px; font-size: 9px; }
 }
+/* On phone-width screens there isn't room for the logo, room code, ping
+   pill AND status pill on one line without the ping pill riding on top
+   of the "Twoplay" wordmark. Below 520px, fold the ping pill's info
+   (direct/relay + latency) into the status pill's own text instead of
+   showing it as a second pill — e.g. "Connected (R) · 118ms" — and hide
+   the standalone ping pill entirely so only one pill remains. JS reads
+   this same breakpoint (see MOBILE_PING_MQ) to know when to write the
+   combined label instead of the separate one. */
+@media (max-width: 520px) {
+    .ping-display { display: none !important; }
+    .status-pill { width: auto; max-width: 100%; }
+}
 .board-frame.flipping { opacity: 0; }
 
 /* ---- Whiteboard game ----
@@ -2745,6 +2757,20 @@ function startPing() {
     }, 2000);
 }
 function stopPing() { if (pingInterval) clearInterval(pingInterval); pingInterval = null; pingSentAt = {}; }
+// Matches the CSS breakpoint above (.ping-display { display:none }) where
+// the standalone ping pill is hidden and its info gets folded into the
+// status pill's own text instead, so the two pills never fight for space
+// next to the logo on phone-width screens.
+const MOBILE_PING_MQ = window.matchMedia ? window.matchMedia('(max-width: 520px)') : null;
+// Short connection-path tag used only in the compact mobile label —
+// "(D)" for a direct P2P route, "(R)" for relayed via TURN. Kept separate
+// from connTypeSuffix()'s " · direct"/" · relay" (used in the full-size
+// ping pill on wider screens) since there's no room for the full word here.
+function connTypeShortTag() {
+    if (connPathType === 'direct') return ' (D)';
+    if (connPathType === 'relay') return ' (R)';
+    return '';
+}
 function handlePong(seq) {
     const sentAt = pingSentAt[seq];
     if (sentAt == null) return;
@@ -2753,13 +2779,24 @@ function handlePong(seq) {
     latencyHistory.push(rtt);
     if (latencyHistory.length > 5) latencyHistory.shift();
     const avg = Math.round(latencyHistory.reduce((a, b) => a + b, 0) / latencyHistory.length);
+    const isMobile = MOBILE_PING_MQ && MOBILE_PING_MQ.matches;
+    const label = document.getElementById('connection-label');
+    if (isMobile && label) {
+        // e.g. "Connected (R) · 118ms" — one pill, no separate ping badge.
+        label.innerText = 'Connected' + connTypeShortTag() + ' · ' + avg + 'ms';
+        label.title = connTypeLabel();
+    }
     const el = document.getElementById('ping-display');
     if (el) {
-        el.classList.remove('hidden');
-        el.innerText = avg + 'ms' + connTypeSuffix();
-        el.classList.remove('good', 'ok', 'bad');
-        el.classList.add(avg < 80 ? 'good' : avg < 180 ? 'ok' : 'bad');
-        el.title = connTypeLabel();
+        if (isMobile) {
+            el.classList.add('hidden');
+        } else {
+            el.classList.remove('hidden');
+            el.innerText = avg + 'ms' + connTypeSuffix();
+            el.classList.remove('good', 'ok', 'bad');
+            el.classList.add(avg < 80 ? 'good' : avg < 180 ? 'ok' : 'bad');
+            el.title = connTypeLabel();
+        }
     }
 }
 
