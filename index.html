@@ -1323,15 +1323,17 @@ a { color: var(--accent); }
    and given its own scroll region so it never affects page height. Only
    kicks in when there's actually room for a panel beside the 560px
    column without overlapping it. */
-@media (min-width: 1024px) and (pointer: fine) {
+@media (min-width: 1240px) and (pointer: fine) {
     .chat-drawer:not(.hidden) {
         position: fixed;
         top: 50%;
-        left: calc(50% + 280px + 24px);
+        left: calc(50% + 304px);
+        right: 20px;
         transform: translateY(-50%);
         margin: 0;
-        width: 320px;
-        max-width: calc(50vw - 280px - 40px);
+        width: auto;
+        min-width: 280px;
+        max-width: 340px;
         max-height: min(600px, calc(100vh - 48px));
         display: flex;
         flex-direction: column;
@@ -1339,6 +1341,7 @@ a { color: var(--accent); }
         animation: chatDrawerInDesktop 0.22s cubic-bezier(.2,.9,.3,1.2);
     }
     .chat-drawer:not(.hidden) .chat-log { flex: 1; max-height: none; }
+    .chat-drawer:not(.hidden) .chat-input-row input { min-width: 0; }
     @keyframes chatDrawerInDesktop { from { transform: translateY(-50%) translateX(-8px); opacity: 0; } to { transform: translateY(-50%) translateX(0); opacity: 1; } }
 }
 
