@@ -401,6 +401,66 @@
     font-display: swap;
 }
 
+/* ===================================================================
+   ROOM THEMES — swaps --bg and --accent (+derived --accent-dim) for
+   the in-game app shell only. Landing page is untouched, and each
+   theme keeps text/contrast in mind so buttons stay legible.
+   =================================================================== */
+/* Applied to <body> (not #app) so the --bg change also reaches body's
+   own background-color — #app is just a child div and never paints a
+   background of its own, so scoping these vars to #app alone would
+   recolor buttons/accents but leave the page background untouched. */
+body.room-theme-sunset  { --bg: #FFF3E9; --accent: #FF7A45; --accent-dim: rgba(255,122,69,0.16); }
+body.room-theme-mint    { --bg: #EAFBF3; --accent: #1FAE7A; --accent-dim: rgba(31,174,122,0.16); }
+body.room-theme-lavender{ --bg: #F4F0FF; --accent: #8A63F2; --accent-dim: rgba(138,99,242,0.16); }
+/* Midnight only swaps the page background and accent — it deliberately
+   leaves --text/--surface alone. Those vars are read by overlay cards
+   (.glass has a hardcoded white translucent background — see below) as
+   well as ordinary light-surface UI everywhere else in the app, so
+   flipping them to light-on-dark here would make white modal text
+   unreadable on a white modal background. Keeping the app's normal
+   light UI on a dark page background still reads as a clear reskin. */
+body.room-theme-midnight{ --bg: #232041; --accent: #7FA8FF; --accent-dim: rgba(127,168,255,0.20); }
+body.room-theme-sun     { --bg: #FFF9E3; --accent: #F2B705; --accent-dim: rgba(242,183,5,0.18); }
+body.room-theme-classic { }
+
+.room-theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 4px; }
+.room-theme-card { border: 2px solid var(--border); border-radius: var(--blob-sm); background: var(--surface-2); cursor: pointer; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: border-color 0.15s, transform 0.12s; }
+.room-theme-card:hover { transform: translateY(-2px); }
+.room-theme-card:active { transform: scale(0.96); }
+.room-theme-card.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.room-theme-swatch { width: 100%; height: 34px; border-radius: 10px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06); }
+.room-theme-name { font-size: 10.5px; font-weight: 800; color: var(--text-dim); text-align: center; }
+.room-theme-card.active .room-theme-name { color: var(--accent); }
+
+/* ===================================================================
+   FLOATING REACTIONS
+   =================================================================== */
+.reaction-tray { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin: 4px 0 2px; }
+.reaction-tray button { font-size: 26px; line-height: 1; padding: 8px; border-radius: var(--blob-sm); background: var(--surface-2); border: 2px solid var(--border); transition: background 0.15s, transform 0.12s; }
+.reaction-tray button:hover { background: var(--surface-3); }
+.reaction-tray button:active { transform: scale(0.88); }
+
+/* Layer that floating reaction emoji rise through. Sits above the game
+   board but stops short of the action row / quick-chat row / chat
+   drawer at the bottom, and ignores pointer events so it never blocks
+   taps on anything underneath. */
+#reaction-layer { position: fixed; left: 0; right: 0; top: 0; bottom: 168px; z-index: 40; pointer-events: none; overflow: hidden; }
+.floating-reaction { position: absolute; bottom: 0; font-size: 34px; animation: floatReaction 2.6s ease-out forwards; will-change: transform, opacity; }
+@keyframes floatReaction {
+    0%   { transform: translateY(0) scale(0.5) rotate(0deg); opacity: 0; }
+    12%  { transform: translateY(-8vh) scale(1.1) rotate(-6deg); opacity: 1; }
+    80%  { opacity: 1; }
+    100% { transform: translateY(-62vh) scale(1) rotate(6deg); opacity: 0; }
+}
+
+/* ===================================================================
+   PASS-AND-PLAY TURN HANDOFF (local mode)
+   =================================================================== */
+.handoff-banner { display: flex; align-items: center; justify-content: center; gap: 8px; text-align: center; font-size: 13px; font-weight: 800; color: var(--accent); background: var(--accent-dim); border-radius: var(--blob-sm); padding: 9px 14px; margin: 0 4px 10px; animation: handoffPulse 1.6s ease-in-out infinite; }
+@keyframes handoffPulse { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-dim); } 50% { box-shadow: 0 0 0 6px transparent; } }
+.handoff-banner.hidden { display: none; }
+
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { color-scheme: light; height: 100%; touch-action: manipulation; }
 body {
@@ -1103,15 +1163,21 @@ a { color: var(--accent); }
     display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px;
     background: var(--surface); border: 2px solid var(--g-yt-dim); border-radius: var(--blob-sm);
     box-shadow: 0 3px 0 rgba(43,36,64,0.06);
+    /* .game-panel is align-items:center, so flex children size to their own
+       content by default instead of stretching to the panel width — without
+       an explicit width here, a long video title just grows the row past
+       the screen edge instead of being ellipsized. */
+    width: 100%; max-width: 100%; box-sizing: border-box;
 }
 .yts-now-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--g-yt); flex-shrink: 0; box-shadow: 0 0 0 3px var(--g-yt-dim); }
 .video-playing .yts-now-dot { animation: ytsPulse 1.6s ease-in-out infinite; }
 @keyframes ytsPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-.yts-now-title { font-size: 12px; font-weight: 800; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yts-now-title { flex: 1; min-width: 0; font-size: 12px; font-weight: 800; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .yts-controls {
     display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px;
     border-radius: var(--blob-sm); background: var(--surface); border: 2px solid var(--border);
     box-shadow: 0 3px 0 rgba(43,36,64,0.06);
+    width: 100%; max-width: 100%; box-sizing: border-box;
 }
 .yts-ctrl-btn {
     width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
@@ -1131,7 +1197,7 @@ a { color: var(--accent); }
 }
 .yts-ctrl-btn.together:hover { border-color: var(--g-yt); }
 .yts-together-icon { font-size: 13px; }
-.yts-add-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.yts-add-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; width: 100%; max-width: 100%; box-sizing: border-box; }
 .yts-url-input {
     flex: 1; min-width: 0; padding: 10px 14px; border-radius: 20px; border: 2px solid var(--border);
     background: var(--surface); color: var(--text); font-size: 12px; font-weight: 700; font-family: var(--font-body);
@@ -1555,6 +1621,12 @@ a { color: var(--accent); }
                 <button class="icon-btn" id="theme-toggle-game" onclick="openThemePicker()" title="Board theme" aria-label="Board theme">
                     <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="10" r="1.3" fill="currentColor"/><circle cx="14.5" cy="9" r="1.1" fill="currentColor"/><circle cx="16" cy="13.5" r="1.2" fill="currentColor"/><circle cx="10.5" cy="15.5" r="1" fill="currentColor"/></svg>
                 </button>
+                <button class="icon-btn" id="room-theme-btn" onclick="openRoomThemePicker()" title="Room theme" aria-label="Room theme">
+                    <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><path d="M4 20 20 4M4 4l16 16" stroke="currentColor" stroke-width="0" /><rect x="4" y="4" width="16" height="16" rx="4" stroke="currentColor" stroke-width="1.6"/><path d="M4 15l4.5-5 3.5 4 2.5-3L20 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <button class="icon-btn" id="reactions-btn" onclick="openReactionsPicker()" title="Reactions" aria-label="Reactions">
+                    <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 14c1 1.2 2.1 1.8 3.5 1.8s2.5-.6 3.5-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="9" cy="10" r="1.1" fill="currentColor"/><circle cx="15" cy="10" r="1.1" fill="currentColor"/></svg>
+                </button>
                 <button class="icon-btn" id="sound-toggle-game" onclick="toggleSound()" title="Toggle sound" aria-label="Toggle sound">
                     <svg class="icon-svg icon-sound-on" viewBox="0 0 24 24" fill="none"><path d="M4 9.5v5h3.2L12 18V6L7.2 9.5H4Z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.7 7.7 0 0 1 0 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
                     <svg class="icon-svg icon-sound-off hidden" viewBox="0 0 24 24" fill="none"><path d="M4 9.5v5h3.2L12 18V6L7.2 9.5H4Z" fill="currentColor"/><path d="M15.5 9.5 19.5 14.5M19.5 9.5 15.5 14.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
@@ -1603,7 +1675,9 @@ a { color: var(--accent); }
     </div>
 
     <div class="preview-banner hidden" id="preview-banner"></div>
+    <div class="handoff-banner hidden" id="handoff-banner"></div>
     <div class="status-line" id="status-line"></div>
+    <div id="reaction-layer" aria-hidden="true"></div>
 
     <main id="game-stage">
         <div id="stage-chess" class="game-panel hidden">
@@ -1847,6 +1921,30 @@ a { color: var(--accent); }
         <p class="overlay-sub">How pieces move when you or your opponent play.</p>
         <div class="move-anim-grid" id="move-anim-grid-live"></div>
         <button class="btn btn-ghost" onclick="closeThemePicker()">Close</button>
+    </div>
+</div>
+
+<!-- ============================================================
+     ROOM THEME PICKER (background + accent color for this room)
+     ============================================================ -->
+<div class="overlay hidden" id="room-theme-overlay">
+    <div class="overlay-card glass" style="max-width:380px;">
+        <h2>Room theme</h2>
+        <p class="overlay-sub">Changes the background and accent color for this room, on this device.</p>
+        <div class="room-theme-grid" id="room-theme-grid"></div>
+        <button class="btn btn-ghost" style="margin-top:8px;" onclick="closeRoomThemePicker()">Close</button>
+    </div>
+</div>
+
+<!-- ============================================================
+     REACTIONS TRAY
+     ============================================================ -->
+<div class="overlay hidden" id="reactions-overlay">
+    <div class="overlay-card glass" style="max-width:340px; text-align:center;">
+        <h2>Send a reaction</h2>
+        <p class="overlay-sub">Floats up on both screens.</p>
+        <div class="reaction-tray" id="reaction-tray"></div>
+        <button class="btn btn-ghost" style="margin-top:8px;" onclick="closeReactionsPicker()">Close</button>
     </div>
 </div>
 
@@ -2239,6 +2337,7 @@ function initPeer(attempt) {
     peer.on('open', id => {
         reconnectAttempts = 0;
         setMyIdDisplay(code, false);
+        if (amHost || !inGameSession) rememberRoomCode(code);
         if (roomFromUrl && !autoJoinAttempted) {
             autoJoinAttempted = true;
             showRole('join');
@@ -2368,9 +2467,32 @@ function doJoin() {
     joinBtn.disabled = true; joinBtn.innerText = 'Connecting…';
     lastJoinedCode = code;
     amHost = false;
+    rememberRoomCode(code);
 
     if (!peer || peer.destroyed) { initPeer(0); setTimeout(() => attemptJoin(code), 500); }
     else attemptJoin(code);
+}
+
+// ===================================================================
+// ROOM CODE PERSISTENCE — remembers the last room code (joined or
+// hosted) so a refresh mid-game can prefill the join box instead of
+// forcing the person to dig up the code again. Never auto-rejoins —
+// the person still has to press Join.
+// ===================================================================
+function rememberRoomCode(code) {
+    if (!/^\d{5}$/.test(code || '')) return;
+    try { localStorage.setItem('twoplay_last_room', code); } catch (e) {}
+}
+function forgetRoomCode() {
+    try { localStorage.removeItem('twoplay_last_room'); } catch (e) {}
+}
+function prefillLastRoomCode() {
+    if (roomFromUrl) return; // an explicit ?room= link always wins
+    let saved = null;
+    try { saved = localStorage.getItem('twoplay_last_room'); } catch (e) {}
+    if (!saved || !/^\d{5}$/.test(saved)) return;
+    const input = document.getElementById('join-code-input');
+    if (input && !input.value) input.value = saved;
 }
 function attemptJoin(code) {
     if (!peer || !peer.open) { setTimeout(() => attemptJoin(code), 300); return; }
@@ -2893,6 +3015,7 @@ function enterGame() {
     setTimeout(() => { landing.style.display = 'none'; }, 240);
     document.getElementById('app').classList.add('live');
     document.getElementById('mini-room-code').innerText = 'Room ' + (lastJoinedCode || document.getElementById('my-id-display').innerText);
+    loadRoomThemeForCurrentRoom();
     document.getElementById('me-name').innerText = myDisplayName || 'You';
     document.getElementById('opp-name').innerText = oppName;
     resetSessionScore();
@@ -2999,6 +3122,7 @@ function handleData(data) {
             case 'ping': safeSend({ type: 'pong', seq: data.seq }); break;
             case 'pong': handlePong(data.seq); break;
             case 'chat': displayChat(data.msg, false); sndNotify(); break;
+            case 'reaction': spawnFloatingReaction(data.emoji, false); break;
             case 'switch_game':
                 currentGame = data.game;
                 initGame(data.game, true);
@@ -3139,12 +3263,29 @@ function updateClockDisplay() {
 
 // ---- Status line ----
 function setStatusLine() {
-    if (gameEnded) return;
+    if (gameEnded) { updateHandoffBanner(); return; }
     const ctrl = GameControllers[currentGame];
     const text = (ctrl && ctrl.statusText) ? ctrl.statusText() : '';
     setStatusLineText(text);
+    updateHandoffBanner();
 }
 function setStatusLineText(text) { document.getElementById('status-line').innerText = text || ''; }
+
+// ---- Pass-and-play turn handoff (local mode only) ----
+// Local-mode game controllers set myColor to whoever's turn it is and call
+// updateAvatars()/setStatusLine() on every turn change (see e.g. chess's
+// `if (localMode) { myColor = chess.turn(); updateAvatars(); }`), so hooking
+// this into setStatusLine() covers every game without touching each one.
+const HANDOFF_GLYPHS = { chess: ['♔ White', '♚ Black'], ttt: ['✕', '○'], c4: ['Yellow', 'Red'], checkers: ['Light', 'Dark'], reversi: ['Light', 'Dark'] };
+function updateHandoffBanner() {
+    const banner = document.getElementById('handoff-banner');
+    if (!banner) return;
+    const glyphs = HANDOFF_GLYPHS[currentGame];
+    if (!localMode || gameEnded || !glyphs) { banner.classList.add('hidden'); return; }
+    const whoseTurn = myColor === 'w' ? glyphs[0] : glyphs[1];
+    banner.innerText = 'Pass the device — ' + whoseTurn + "'s turn";
+    banner.classList.remove('hidden');
+}
 
 // ---- End game / overlay ----
 function endGame(title, sub, kind, winnerColor) {
@@ -3238,6 +3379,8 @@ function leaveRoom() {
     try { if (conn) conn.close(); } catch (e) {}
     try { if (peer) peer.destroy(); } catch (e) {}
     conn = null;
+    forgetRoomCode();
+    Object.keys(ROOM_THEMES).forEach(k => document.body.classList.remove('room-theme-' + k));
     // A fresh reload is the simplest reliable way back to a clean landing
     // state — the app's boot path already handles first-load setup, so we
     // don't need to hand-unwind every piece of live-game UI/state here.
@@ -3292,6 +3435,54 @@ function displayChat(msg, isMe) {
     div.innerText = msg;
     log.appendChild(div);
     log.scrollTop = log.scrollHeight;
+}
+
+// ===================================================================
+// FLOATING REACTIONS
+// ===================================================================
+const REACTION_EMOJIS = ['😂', '😮', '🔥', '❤️', '👏', '😢', '😡', '🎉'];
+
+function buildReactionTray() {
+    const el = document.getElementById('reaction-tray');
+    if (!el) return;
+    el.innerHTML = '';
+    REACTION_EMOJIS.forEach(emoji => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.innerText = emoji;
+        btn.setAttribute('aria-label', 'Send ' + emoji);
+        btn.addEventListener('click', () => sendReaction(emoji));
+        el.appendChild(btn);
+    });
+}
+function openReactionsPicker() {
+    buildReactionTray();
+    document.getElementById('reactions-overlay').classList.remove('hidden');
+}
+function closeReactionsPicker() { document.getElementById('reactions-overlay').classList.add('hidden'); }
+
+function sendReaction(emoji) {
+    if (!localMode) safeSend({ type: 'reaction', emoji });
+    spawnFloatingReaction(emoji, true);
+    closeReactionsPicker();
+}
+// isMe just biases the horizontal spawn spot (left for opponent, right for
+// you) so simultaneous reactions from both sides don't stack on top of
+// each other; the reaction layer itself never blocks the board or
+// bottom UI (see #reaction-layer's `bottom` inset).
+function spawnFloatingReaction(emoji, isMe) {
+    const layer = document.getElementById('reaction-layer');
+    if (!layer || !emoji) return;
+    const span = document.createElement('span');
+    span.className = 'floating-reaction';
+    span.innerText = emoji;
+    const side = isMe ? (60 + Math.random() * 24) : (16 + Math.random() * 24); // % from left
+    span.style.left = side + '%';
+    span.style.animationDuration = (2.2 + Math.random() * 0.8) + 's';
+    layer.appendChild(span);
+    span.addEventListener('animationend', () => span.remove());
+    // Safety net in case animationend never fires (e.g. tab backgrounded).
+    setTimeout(() => { if (span.isConnected) span.remove(); }, 3600);
 }
 
 // ---- Keyboard shortcuts ----
@@ -3446,6 +3637,79 @@ function openThemePicker() {
     document.getElementById('theme-picker-overlay').classList.remove('hidden');
 }
 function closeThemePicker() { document.getElementById('theme-picker-overlay').classList.add('hidden'); }
+
+// ===================================================================
+// ROOM THEMES — background + accent color for the in-game shell.
+// Local-only display preference (never sent to the opponent), stored
+// per-room so different rooms can remember different looks.
+// =================================================================== 
+const ROOM_THEMES = {
+    classic:   { name: 'Classic',   swatch: 'linear-gradient(135deg, #FFF8EE 55%, #FF6FA5 55%)' },
+    sunset:    { name: 'Sunset',    swatch: 'linear-gradient(135deg, #FFF3E9 55%, #FF7A45 55%)' },
+    mint:      { name: 'Mint',      swatch: 'linear-gradient(135deg, #EAFBF3 55%, #1FAE7A 55%)' },
+    lavender:  { name: 'Lavender',  swatch: 'linear-gradient(135deg, #F4F0FF 55%, #8A63F2 55%)' },
+    midnight:  { name: 'Midnight',  swatch: 'linear-gradient(135deg, #232041 55%, #7FA8FF 55%)' },
+    sun:       { name: 'Sun',       swatch: 'linear-gradient(135deg, #FFF9E3 55%, #F2B705 55%)' }
+};
+let currentRoomTheme = 'classic';
+
+function roomThemeStorageKey() {
+    // Prefer the actual room code so each room can carry its own theme.
+    // Joiners have it in lastJoinedCode; hosts have it in myPeerCode
+    // (lastJoinedCode stays null on the host side). Falls back to a
+    // shared key if neither is available yet.
+    const code = (typeof lastJoinedCode === 'string' && lastJoinedCode)
+        ? lastJoinedCode
+        : ((typeof myPeerCode === 'string' && myPeerCode) ? myPeerCode : 'default');
+    return 'twoplay_room_theme_' + code;
+}
+function loadRoomThemeForCurrentRoom() {
+    let theme = 'classic';
+    try {
+        const saved = localStorage.getItem(roomThemeStorageKey());
+        if (saved && ROOM_THEMES[saved]) theme = saved;
+    } catch (e) {}
+    applyRoomTheme(theme, false);
+}
+function applyRoomTheme(key, persist) {
+    if (!ROOM_THEMES[key]) key = 'classic';
+    currentRoomTheme = key;
+    Object.keys(ROOM_THEMES).forEach(k => document.body.classList.remove('room-theme-' + k));
+    if (key !== 'classic') document.body.classList.add('room-theme-' + key);
+    if (persist) {
+        try { localStorage.setItem(roomThemeStorageKey(), key); } catch (e) {}
+    }
+    buildRoomThemeGrid();
+}
+function setRoomTheme(key) { applyRoomTheme(key, true); }
+
+function buildRoomThemeGrid() {
+    const el = document.getElementById('room-theme-grid');
+    if (!el) return;
+    el.innerHTML = '';
+    Object.keys(ROOM_THEMES).forEach(key => {
+        const t = ROOM_THEMES[key];
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'room-theme-card' + (key === currentRoomTheme ? ' active' : '');
+        card.setAttribute('aria-label', t.name);
+        const swatch = document.createElement('div');
+        swatch.className = 'room-theme-swatch';
+        swatch.style.background = t.swatch;
+        const label = document.createElement('span');
+        label.className = 'room-theme-name';
+        label.innerText = t.name;
+        card.appendChild(swatch);
+        card.appendChild(label);
+        card.addEventListener('click', () => setRoomTheme(key));
+        el.appendChild(card);
+    });
+}
+function openRoomThemePicker() {
+    buildRoomThemeGrid();
+    document.getElementById('room-theme-overlay').classList.remove('hidden');
+}
+function closeRoomThemePicker() { document.getElementById('room-theme-overlay').classList.add('hidden'); }
 
 // ===================================================================
 // COZY BACKGROUND MUSIC
@@ -5271,8 +5535,19 @@ function updateMusicButtons() {
 
     function setupPlayer() {
         if (player) return;
+        // origin must be a real http(s) origin YouTube can validate — when
+        // this page is opened via file:// or content:// (e.g. straight from
+        // a downloaded HTML file rather than a real web server),
+        // location.origin is "null" or a non-http scheme, which the iframe
+        // API rejects outright with Error 153. Omitting origin entirely in
+        // that case still lets the embed work; only pass it when we're
+        // actually on http(s).
+        const isHttp = /^https?:$/.test(window.location.protocol);
+        const vars = { enablejsapi: 1, playsinline: 1, rel: 0 };
+        if (isHttp) vars.origin = window.location.origin;
+        else console.warn('Twoplay: page is not served over http(s) (protocol is "' + window.location.protocol + '") — YouTube embeds may still fail to load. Serve this file from a real web server (e.g. `npx serve`) instead of opening it directly.');
         player = new YT.Player('yts-player', {
-            playerVars: { enablejsapi: 1, origin: window.location.origin, playsinline: 1, rel: 0 },
+            playerVars: vars,
             events: {
                 onReady: () => { playerReady = true; },
                 onStateChange: onPlayerStateChange,
@@ -5287,7 +5562,10 @@ function updateMusicButtons() {
         if (code === 101 || code === 150) msg = "This video's owner disabled it from playing elsewhere — try another.";
         else if (code === 100) msg = 'That video is private or was removed.';
         else if (code === 2) msg = "That link doesn't point to a valid video.";
-        toast(msg);
+        else if (code === 153) msg = /^https?:$/.test(window.location.protocol)
+            ? "YouTube blocked embedding here — try another video."
+            : "YouTube can't embed video on a page opened this way — open Twoplay from a real web link instead of a downloaded file.";
+        toast(msg, code === 153 ? 6000 : 3200);
     }
 
     function setNowShowing(title) {
@@ -5667,6 +5945,7 @@ function updateMusicButtons() {
 // BOOT
 // ===================================================================
 setMyIdDisplay('connecting…', true);
+prefillLastRoomCode();
 initPeer(0);
 </script>
 
