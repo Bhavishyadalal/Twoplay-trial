@@ -749,6 +749,7 @@ a { color: var(--accent); }
     transition: color 0.3s, font-size 0.25s, letter-spacing 0.25s;
 }
 .id-box.loading { color: var(--text-faint); font-size: 15px; letter-spacing: normal; }
+.id-box.loading[onclick], .id-box.loading.retryable { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .id-sub { font-size: 12px; color: var(--text-faint); text-align: center; margin-bottom: 20px; }
 
 .name-input {
@@ -928,7 +929,15 @@ body.custom-cursor-active input, body.custom-cursor-active textarea, body.custom
 .ping-display.ok { color: var(--accent); }
 .ping-display.bad { color: var(--danger); }
 
-.status-pill { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); font-weight: 700; height: 34px; padding: 0 10px; box-sizing: border-box; border-radius: 20px; background: var(--surface-2); border: 2px solid var(--border); transition: border-color 0.3s, background 0.3s; flex-shrink: 0; white-space: nowrap; }
+/* Fixed width (not just max-width) so the pill's footprint never changes
+   as status text changes — without a hard width, longer strings like
+   "Reconnecting… (5/8)" grow the pill and shove the neighboring "more"
+   button sideways, which can turn a tap on that button into a miss right
+   as the animation happens. 148px comfortably fits every status string
+   used in JS (see setStatusLabel calls); text-overflow is just a safety
+   net if a future label runs longer than that. */
+.status-pill { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); font-weight: 700; height: 34px; padding: 0 10px; box-sizing: border-box; border-radius: 20px; background: var(--surface-2); border: 2px solid var(--border); transition: border-color 0.3s, background 0.3s; flex-shrink: 0; width: 132px; white-space: nowrap; }
+.status-pill #connection-label { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); transition: background 0.3s, box-shadow 0.3s; }
 .status-dot.on { background: var(--live); box-shadow: 0 0 6px rgba(47,191,131,0.6); animation: dotSteady 2.4s ease-in-out infinite; }
 .status-dot.connecting { background: var(--accent); animation: pulseDot 1.6s ease-in-out infinite; }
@@ -1037,7 +1046,11 @@ body.custom-cursor-active input, body.custom-cursor-active textarea, body.custom
     padding: 8px; min-width: 168px;
     background: var(--surface); border: 2px solid var(--border);
     border-radius: var(--blob-md); box-shadow: var(--shadow-lift);
-    z-index: 20;
+    /* Raised above every other in-page layer (overlays at 50, the effects
+       canvas at 90, reactions at 40) so a lingering overlay transition or
+       a reaction burst can never sit on top of the menu and swallow taps
+       meant for it. */
+    z-index: 100;
 }
 .header-actions.open { display: flex; }
 .header-actions .icon-btn {
@@ -2407,6 +2420,45 @@ function setMyIdDisplay(text, loading) {
     if (full) { full.innerText = text; full.classList.toggle('loading', !!loading); }
 }
 
+// Watchdog: if the signaling handshake (peer.on('open')) hasn't completed
+// within a few seconds, PeerJS's own 'error' event doesn't always fire —
+// on some networks the socket just sits half-open forever, leaving the UI
+// stuck on "connecting…" with no code shown and no way to recover short of
+// a manual refresh. This timer forces a retry (or a visible failure after
+// enough tries) so a slow/flaky signaling server can't hang the app.
+let peerOpenWatchdog = null;
+let peerBootAttempts = 0;
+const PEER_BOOT_TIMEOUT_MS = 9000;
+const PEER_BOOT_MAX_ATTEMPTS = 4;
+
+function clearPeerOpenWatchdog() {
+    if (peerOpenWatchdog) { clearTimeout(peerOpenWatchdog); peerOpenWatchdog = null; }
+}
+
+function armPeerOpenWatchdog() {
+    clearPeerOpenWatchdog();
+    peerOpenWatchdog = setTimeout(() => {
+        peerOpenWatchdog = null;
+        if (peer && peer.open) return; // already connected, nothing to do
+        peerBootAttempts++;
+        if (peerBootAttempts >= PEER_BOOT_MAX_ATTEMPTS) {
+            setMyIdDisplay('Connection timed out — tap to retry', true);
+            const idEl = document.getElementById('my-id-display');
+            if (idEl) { idEl.onclick = () => { peerBootAttempts = 0; retryPeerBoot(); }; idEl.classList.add('retryable'); }
+            return;
+        }
+        setMyIdDisplay('Still connecting… retrying', true);
+        retryPeerBoot();
+    }, PEER_BOOT_TIMEOUT_MS);
+}
+
+// Tears down whatever's left of a stalled peer and starts fresh, keeping
+// the same 5-digit code so an in-progress room invite link still works.
+function retryPeerBoot() {
+    try { peer && peer.destroy(); } catch (e) {}
+    initPeer(0);
+}
+
 function initPeer(attempt) {
     if (typeof Peer === 'undefined') {
         console.error('PeerJS failed to load.');
@@ -2419,9 +2471,14 @@ function initPeer(attempt) {
     if (!myPeerCode) myPeerCode = generateCode();
     const code = myPeerCode;
     peer = new Peer('twoplay-' + code, { config: ICE_CONFIG, debug: 0 });
+    armPeerOpenWatchdog();
 
     peer.on('open', id => {
+        clearPeerOpenWatchdog();
+        peerBootAttempts = 0;
         reconnectAttempts = 0;
+        const idEl = document.getElementById('my-id-display');
+        if (idEl) { idEl.onclick = null; idEl.classList.remove('retryable'); }
         setMyIdDisplay(code, false);
         if (amHost || !inGameSession) rememberRoomCode(code);
         if (roomFromUrl && !autoJoinAttempted) {
@@ -2433,7 +2490,7 @@ function initPeer(attempt) {
         // If we already had a live game session and the underlying peer/socket
         // was rebuilt (not just the data connection), the host side just needs
         // to wait for the joiner to redial — nothing else to do here.
-        if (inGameSession) setStatusLabel(amHost ? 'Waiting for reconnection…' : 'Reconnecting…');
+        if (inGameSession) setStatusLabel(amHost ? 'Waiting…' : 'Reconnecting…');
         if (inGameSession && !amHost && lastJoinedCode) attemptJoin(lastJoinedCode);
     });
     peer.on('connection', c => {
@@ -2481,6 +2538,9 @@ function initPeer(attempt) {
     });
     peer.on('error', err => {
         console.error('Peer error:', err);
+        // A real error means we don't need the boot watchdog firing on top
+        // of whatever recovery path runs below.
+        clearPeerOpenWatchdog();
         if (err.type === 'unavailable-id' && attempt < 5) {
             // Our own previous instance hasn't timed out on the signaling
             // server yet. Don't burn a new code — same id, brief retry with
@@ -2499,7 +2559,9 @@ function initPeer(attempt) {
         } else if (inGameSession) {
             scheduleReconnectRetry();
         } else {
-            setMyIdDisplay('Connection error — refresh to retry', true);
+            setMyIdDisplay('Connection error — tap to retry', true);
+            const idEl = document.getElementById('my-id-display');
+            if (idEl) { idEl.onclick = () => { peerBootAttempts = 0; retryPeerBoot(); }; idEl.classList.add('retryable'); }
         }
     });
 }
@@ -2527,7 +2589,7 @@ function scheduleReconnectRetry() {
         toast("Couldn't reconnect. " + oppName + ' may have left.', 6000);
         return;
     }
-    setStatusLabel('Reconnecting… (' + reconnectAttempts + '/' + RECONNECT_MAX_ATTEMPTS + ')');
+    setStatusLabel('Reconnecting ' + reconnectAttempts + '/' + RECONNECT_MAX_ATTEMPTS);
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
